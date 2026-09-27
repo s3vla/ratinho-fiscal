@@ -17,17 +17,25 @@ let pendente = false;
 let digitados = 0;
 let colados = 0;
 let placar;
-// lembra o humor e a fala atuais, pra reenviar quando o painel recarregar
+// NOVO: tomatadas levadas no total, e as que ainda estão grudadas na tela
+let tomatadas = 0;
+let splatsNaTela = 0;
+// lembra o humor, a fala e o trecho atuais, pra reenviar quando o painel recarregar
 let humorAtual = "feliz";
 let falaAtual = "Tô de olho na panela e no seu código.";
+let codigoAtual = null;
 // o pomodoro
 let segundos = 0;
 let pomodoros = 0;
 let ultimaAtividade = Date.now();
-// NOVO: manchas de tomate no código
+// manchas de tomate no código
 let tomate;
 let manchas = [];
 let editorManchado;
+// o último texto copiado de dentro do VS Code
+let copiadoAqui = "";
+// a linha que o ratinho quer que você explique
+let linhaPedida = null;
 
 // roda uma vez, quando a extensão liga
 function activate(context) {
@@ -41,14 +49,14 @@ function activate(context) {
   atualizarPlacar();
   placar.show();
 
-  // NOVO: o estilo da mancha de tomate
+  // o estilo da mancha de tomate no código
   tomate = vscode.window.createTextEditorDecorationType({
     backgroundColor: "rgba(247, 118, 142, 0.13)",
     isWholeLine: true,
     overviewRulerColor: "#f7768e",
     overviewRulerLane: vscode.OverviewRulerLane.Right,
     after: {
-      contentText: "  🍅 splat! explica com um //",
+      contentText: "  🍅 splat! explica com um comentário",
       color: "#f7768e",
       fontStyle: "italic",
     },
@@ -68,6 +76,11 @@ function activate(context) {
           enviarHumor(0);
           atualizarPlacar();
           enviarTempo();
+          // NOVO: redesenha as manchas que ainda estavam na tela
+          painel.webview.postMessage({
+            tipo: "splats",
+            quantidade: splatsNaTela,
+          });
         }
       });
     },
@@ -78,6 +91,24 @@ function activate(context) {
     provedor,
   );
 
+  // roda no lugar do Ctrl+C (copia e guarda o que foi copiado)
+  const copiar = vscode.commands.registerCommand(
+    "ratinho-fiscal.copiar",
+    async function () {
+      await vscode.commands.executeCommand("editor.action.clipboardCopyAction");
+      copiadoAqui = await vscode.env.clipboard.readText();
+    },
+  );
+
+  // roda no lugar do Ctrl+X (recorta e guarda o que foi recortado)
+  const recortar = vscode.commands.registerCommand(
+    "ratinho-fiscal.recortar",
+    async function () {
+      await vscode.commands.executeCommand("editor.action.clipboardCutAction");
+      copiadoAqui = await vscode.env.clipboard.readText();
+    },
+  );
+
   // roda no lugar do Ctrl+V
   const colar = vscode.commands.registerCommand(
     "ratinho-fiscal.colar",
@@ -85,13 +116,27 @@ function activate(context) {
       const texto = await vscode.env.clipboard.readText();
       const linhas = texto.split("\n").length;
 
-      // NOVO: guarda onde o cursor estava ANTES de colar
+      // veio de dentro do VS Code? então é código seu mudando de lugar
+      const doProprioCodigo = texto === copiadoAqui;
+
+      // guarda onde o cursor estava ANTES de colar
       const editor = vscode.window.activeTextEditor;
       const inicio = editor ? editor.selection.start : null;
 
       await vscode.commands.executeCommand(
         "editor.action.clipboardPasteAction",
       );
+
+      // código seu não conta como colado e não leva tomate
+      if (doProprioCodigo) {
+        if (linhas >= 3 && !pendente) {
+          avisar(
+            "feliz",
+            "Mudando seu próprio código de lugar? Pode, esse é seu.",
+          );
+        }
+        return;
+      }
 
       // conta o que foi colado
       colados += texto.length;
@@ -103,7 +148,7 @@ function activate(context) {
       // colou um bloco, o pomodoro zera
       segundos = 0;
 
-      // NOVO: mancha de tomate do início até onde o cursor parou
+      // mancha de tomate do início até onde o cursor parou
       if (editor && inicio) {
         const fim = editor.selection.active;
         if (editorManchado !== editor) manchas = [];
@@ -112,28 +157,33 @@ function activate(context) {
         editorManchado = editor;
       }
 
-      const total = digitados + colados;
+      // escolhe a linha que ele quer que você explique
+      linhaPedida = escolherLinha(texto);
+      const pedido = linhaPedida
+        ? "Explica essa linha com um comentário logo acima dela:"
+        : "Explica com um comentário.";
 
       // decide o humor (e quantos tomates jogar)
       if (pendente) {
         avisar(
           "bravo",
-          "Colou de novo sem explicar o anterior! Comentário // antes de seguir.",
+          "Colou de novo sem explicar o anterior! " + pedido,
           3,
+          linhaPedida,
         );
-      } else if (total > 1000 && porcentagemColada() >= 25) {
+      } else if (digitados >= 500 && porcentagemColada() >= 25) {
         avisar(
           "bravo",
-          porcentagemColada() + "% do código foi colado. Bora digitar!",
+          porcentagemColada() + "% do código foi colado. " + pedido,
           3,
+          linhaPedida,
         );
       } else {
         avisar(
           "desconfiado",
-          "Esse bloco veio pronto, né? " +
-            linhas +
-            " linhas coladas. Explica com um comentário //",
+          "Esse bloco veio pronto, né? " + pedido,
           1,
+          linhaPedida,
         );
       }
 
@@ -164,14 +214,34 @@ function activate(context) {
 
       // pega a linha onde o Enter foi apertado
       const numero = mudanca.range.start.line;
-      const linha = evento.document.lineAt(numero).text.trim();
-      const palavras = linha.replace("//", "").trim().split(/\s+/);
+      const texto = evento.document.lineAt(numero).text;
 
-      // comentário com pelo menos 3 palavras? explicou!
-      if (linha.startsWith("//") && palavras.length >= 3) {
+      // tem comentário nessa linha? aceita // (JS), # (Python), <!-- (HTML) e /* (CSS)
+      const achou = texto.match(/(^|\s)(\/\/|#|<!--|\/\*)\s+(.*)$/);
+      if (!achou) continue;
+
+      // tira o fechamento --> ou */ e conta as palavras
+      const comentario = achou[3].replace(/(-->|\*\/)\s*$/, "").trim();
+      const palavras = comentario.split(/\s+/);
+      if (palavras.length < 3) continue;
+
+      // explicou a linha certa?
+      if (
+        !linhaPedida ||
+        explicouALinha(evento.document, numero, texto, achou.index)
+      ) {
         pendente = false;
-        limparManchas(); // NOVO
+        linhaPedida = null;
+        splatsNaTela = 0; // NOVO: o painel limpa as manchas quando fica feliz
+        limparManchas();
         avisar("feliz", "Agora sim! Quem explica é porque entendeu.");
+      } else {
+        avisar(
+          humorAtual,
+          "Bom comentário, mas eu perguntei desta linha. Coloca o comentário logo acima dela:",
+          0,
+          linhaPedida,
+        );
       }
     }
 
@@ -201,13 +271,59 @@ function activate(context) {
     enviarTempo();
   }, 1000);
 
-  // guarda tudo na lista de limpeza (inclusive o relógio e a mancha)
-  context.subscriptions.push(placar, registro, colar, ouvinte, tomate, {
-    dispose: () => clearInterval(relogio),
-  });
+  // guarda tudo na lista de limpeza
+  context.subscriptions.push(
+    placar,
+    registro,
+    copiar,
+    recortar,
+    colar,
+    ouvinte,
+    tomate,
+    {
+      dispose: () => clearInterval(relogio),
+    },
+  );
 }
 
-// NOVO: tira todas as manchas de tomate
+// escolhe uma linha "interessante" do bloco colado
+function escolherLinha(texto) {
+  const candidatas = texto
+    .split("\n")
+    .map((linha) => linha.trim())
+    .filter(
+      (linha) =>
+        linha.length >= 10 && // não muito curta
+        !/^(\/\/|#|<!--|\/\*)/.test(linha) && // não é comentário
+        !/^[\s{}()[\];,]*$/.test(linha), // não é só } ou );
+    );
+
+  if (candidatas.length === 0) return null;
+  return candidatas[Math.floor(Math.random() * candidatas.length)];
+}
+
+// tira espaços, aspas e ; pra comparar linhas sem se importar com o Prettier
+function normalizar(linha) {
+  return linha.replace(/[\s'"`;,]/g, "");
+}
+
+// o comentário está no fim da linha pedida ou logo acima dela?
+function explicouALinha(documento, numero, texto, posicao) {
+  const alvo = normalizar(linhaPedida);
+
+  // comentário no fim da própria linha: codigo(); // explicação
+  const codigoAntes = texto.slice(0, posicao);
+  if (normalizar(codigoAntes) === alvo) return true;
+
+  // comentário acima: olha as 3 linhas de baixo
+  for (let i = numero + 1; i <= numero + 3 && i < documento.lineCount; i++) {
+    if (normalizar(documento.lineAt(i).text) === alvo) return true;
+  }
+
+  return false;
+}
+
+// tira todas as manchas de tomate do código
 function limparManchas() {
   if (editorManchado) editorManchado.setDecorations(tomate, []);
   manchas = [];
@@ -255,15 +371,25 @@ function atualizarPlacar() {
       tipo: "placar",
       digitados: digitados,
       colados: colados,
+      tomatadas: tomatadas,
       porcentagem: colado,
     });
   }
 }
 
-// guarda o humor novo e manda pro painel (NOVO: com tomates)
-function avisar(humor, fala, tomates = 0) {
+// guarda o humor novo e manda pro painel
+function avisar(humor, fala, tomates = 0, codigo = null) {
   humorAtual = humor;
   falaAtual = fala;
+  codigoAtual = codigo;
+
+  // NOVO: soma as tomatadas
+  if (tomates > 0) {
+    tomatadas += tomates;
+    splatsNaTela = Math.min(splatsNaTela + tomates, 14);
+    atualizarPlacar();
+  }
+
   enviarHumor(tomates);
 }
 
@@ -274,6 +400,7 @@ function enviarHumor(tomates) {
       tipo: "humor",
       humor: humorAtual,
       fala: falaAtual,
+      codigo: codigoAtual,
       tomates: tomates,
     });
   }

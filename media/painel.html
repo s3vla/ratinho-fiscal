@@ -29,6 +29,21 @@
       body.festa .balao {
         border-color: #bb9af7;
       }
+      .trecho {
+        display: block;
+        margin-top: 6px;
+        padding: 4px 8px;
+        border-radius: 6px;
+        background: #1a1b26;
+        font-family: var(--vscode-editor-font-family);
+        font-size: 12px;
+        text-align: left;
+        white-space: pre-wrap;
+        word-break: break-all;
+      }
+      .trecho[hidden] {
+        display: none;
+      }
       svg.rato {
         width: 180px;
         overflow: visible;
@@ -151,27 +166,32 @@
         white-space: nowrap;
       }
 
-      /* contadores */
+      /* contadores (NOVO: 3 colunas, com as tomatadas) */
       .placar {
         display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 8px;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 6px;
         width: 100%;
         max-width: 260px;
       }
       .placar div {
         border: 1px solid #3b4261;
         border-radius: 10px;
-        padding: 6px 10px;
+        padding: 6px 8px;
         display: flex;
         flex-direction: column;
+        min-width: 0;
       }
       .placar b {
-        font-size: 20px;
+        font-size: 18px;
         font-variant-numeric: tabular-nums;
       }
       .placar small {
         opacity: 0.75;
+        font-size: 11px;
+      }
+      .placar .tomatadas b {
+        color: #f7768e;
       }
       .barra {
         width: 100%;
@@ -202,7 +222,7 @@
         animation: cai 1.8s linear forwards;
       }
 
-      /* NOVO: tomate voando */
+      /* tomate voando */
       .tomate {
         position: fixed;
         width: 26px;
@@ -229,7 +249,7 @@
         border-radius: 50% 50% 0 0;
         background: #73a942;
       }
-      /* NOVO: splat no vidro */
+      /* NOVO: splat que fica grudado até você explicar */
       .splat {
         position: fixed;
         width: 130px;
@@ -237,7 +257,11 @@
         margin: -65px 0 0 -65px;
         pointer-events: none;
         z-index: 9;
-        animation: escorre 3s ease-in forwards;
+        opacity: 0.9;
+        animation: gruda 0.7s ease-out forwards;
+      }
+      .splat.limpando {
+        animation: limpa 0.7s ease-in forwards;
       }
 
       @keyframes bigode {
@@ -318,23 +342,28 @@
           transform: translate(var(--dx), var(--dy)) scale(3.2) rotate(200deg);
         }
       }
-      @keyframes escorre {
+      @keyframes gruda {
         0% {
           transform: scale(0.3);
         }
-        10% {
+        40% {
           transform: scale(1.12);
         }
-        16% {
+        60% {
           transform: scale(1);
         }
-        70% {
-          opacity: 1;
-          transform: translateY(8px);
-        }
         100% {
+          transform: scale(1) translateY(10px);
+        }
+      }
+      @keyframes limpa {
+        from {
+          transform: translateY(10px);
+          opacity: 0.9;
+        }
+        to {
+          transform: translateY(80px);
           opacity: 0;
-          transform: translateY(30px);
         }
       }
       @media (prefers-reduced-motion: reduce) {
@@ -343,15 +372,17 @@
           transition: none !important;
         }
         .confete,
-        .tomate,
-        .splat {
+        .tomate {
           display: none;
         }
       }
     </style>
   </head>
   <body class="feliz">
-    <p class="balao" role="status">Tô de olho na panela e no seu código.</p>
+    <p class="balao" role="status">
+      <span id="fala">Tô de olho na panela e no seu código.</span
+      ><code class="trecho" id="trecho" hidden></code>
+    </p>
     <svg
       class="rato"
       viewBox="0 0 200 230"
@@ -553,23 +584,37 @@
         <b id="relogio">00:00</b>
         <small id="rotulo-tempo">codando sem colar</small>
       </div>
-      <span class="tomates" id="tomates" title="Pomodoros completos">🍅 0</span>
+      <span
+        class="tomates"
+        id="tomates"
+        title="Pomodoros completos (25 min sem colar)"
+        >🏆 0</span
+      >
     </div>
 
     <!-- contadores -->
     <div class="placar">
-      <div><b id="n-digitado">0</b><small>caracteres digitados</small></div>
-      <div><b id="n-colado">0</b><small>caracteres colados</small></div>
+      <div title="Caracteres digitados">
+        <b id="n-digitado">0</b><small>digitados</small>
+      </div>
+      <div title="Caracteres colados">
+        <b id="n-colado">0</b><small>colados</small>
+      </div>
+      <div class="tomatadas" title="Tomates que você levou">
+        <b id="n-tomatadas">0</b><small>tomatadas</small>
+      </div>
     </div>
     <div class="barra" aria-hidden="true"><span id="barra-colado"></span></div>
 
     <script>
       // o "telefone" pra falar com a extensão
       const vscode = acquireVsCodeApi();
-      const balao = document.querySelector(".balao");
+      const fala = document.getElementById("fala");
+      const trecho = document.getElementById("trecho");
       const VOLTA = 175.9; // tamanho do contorno do anel
+      const MAX_SPLATS = 14; // no máximo 14 manchas na tela
 
-      // NOVO: o desenho da mancha de tomate
+      // o desenho da mancha de tomate
       const DESENHO_SPLAT = `
       <svg viewBox="0 0 120 120" width="130" height="130">
         <path fill="#e5484d" d="M60 14c9 0 11 12 19 14s18-6 22 3-7 14-4 22 14 12 9 21-16 2-21 9 2 20-8 23-12-9-20-9-13 12-22 6 1-17-5-23-19-2-21-12 11-12 11-20S14 36 20 29s16 3 23-1 8-14 17-14z"/>
@@ -587,9 +632,20 @@
 
         if (recado.tipo === "humor") {
           document.body.className = recado.humor;
-          balao.textContent = recado.fala;
+          fala.textContent = recado.fala;
+          trecho.textContent = recado.codigo || "";
+          trecho.hidden = !recado.codigo;
           if (recado.humor === "festa") soltarConfete();
-          if (recado.tomates) jogarTomates(recado.tomates); // NOVO
+          if (recado.tomates) jogarTomates(recado.tomates);
+          // NOVO: feliz ou em festa? limpa as manchas
+          if (recado.humor === "feliz" || recado.humor === "festa")
+            limparSplats();
+        }
+
+        // NOVO: redesenha as manchas que já estavam (quando o painel recarrega)
+        if (recado.tipo === "splats") {
+          for (let i = 0; i < recado.quantidade; i++)
+            criarSplat(lugarAleatorio());
         }
 
         if (recado.tipo === "placar") {
@@ -597,6 +653,8 @@
             recado.digitados.toLocaleString("pt-BR");
           document.getElementById("n-colado").textContent =
             recado.colados.toLocaleString("pt-BR");
+          document.getElementById("n-tomatadas").textContent =
+            recado.tomatadas.toLocaleString("pt-BR");
           document.getElementById("barra-colado").style.width =
             recado.porcentagem + "%";
         }
@@ -615,7 +673,7 @@
             VOLTA * (1 - feito);
 
           document.getElementById("tomates").textContent =
-            "🍅 " + recado.pomodoros;
+            "🏆 " + recado.pomodoros;
           document.getElementById("rotulo-tempo").textContent = recado.motivo;
           document
             .getElementById("pomodoro")
@@ -623,49 +681,71 @@
         }
       });
 
-      // NOVO: joga vários tomates, um depois do outro
+      // um ponto aleatório da tela
+      function lugarAleatorio() {
+        return {
+          x: window.innerWidth * (0.15 + Math.random() * 0.7),
+          y: window.innerHeight * (0.1 + Math.random() * 0.6),
+        };
+      }
+
+      // joga vários tomates, um depois do outro
       function jogarTomates(quantidade) {
-        if (window.matchMedia("(prefers-reduced-motion: reduce)").matches)
-          return;
+        const semAnimacao = window.matchMedia(
+          "(prefers-reduced-motion: reduce)",
+        ).matches;
         for (let i = 0; i < quantidade; i++) {
-          setTimeout(jogarUmTomate, i * 380);
+          if (semAnimacao) criarSplat(lugarAleatorio());
+          else setTimeout(jogarUmTomate, i * 380);
         }
       }
 
-      // NOVO: um tomate sai da mão do ratinho e faz splat na tela
+      // um tomate sai da mão do ratinho e faz splat na tela
       function jogarUmTomate() {
-        // onde está o ratinho na tela
         const rato = document.querySelector("svg.rato").getBoundingClientRect();
         const saidaX = rato.left + rato.width * 0.67;
         const saidaY = rato.top + rato.height * 0.6;
+        const alvo = lugarAleatorio();
 
-        // um lugar aleatório pra acertar
-        const alvoX = window.innerWidth * (0.2 + Math.random() * 0.6);
-        const alvoY = window.innerHeight * (0.15 + Math.random() * 0.5);
-
-        // cria o tomate na mão do ratinho
         const tomate = document.createElement("span");
         tomate.className = "tomate";
         tomate.style.left = saidaX + "px";
         tomate.style.top = saidaY + "px";
-        tomate.style.setProperty("--dx", alvoX - saidaX + "px");
-        tomate.style.setProperty("--dy", alvoY - saidaY + "px");
+        tomate.style.setProperty("--dx", alvo.x - saidaX + "px");
+        tomate.style.setProperty("--dy", alvo.y - saidaY + "px");
         document.body.appendChild(tomate);
 
-        // quando o tomate chega: some e vira splat
         tomate.addEventListener("animationend", () => {
           tomate.remove();
-
-          const splat = document.createElement("div");
-          splat.className = "splat";
-          splat.innerHTML = DESENHO_SPLAT;
-          splat.style.left = alvoX + "px";
-          splat.style.top = alvoY + "px";
-          splat.style.rotate = Math.random() * 360 + "deg";
-          document.body.appendChild(splat);
-
-          setTimeout(() => splat.remove(), 3000);
+          criarSplat(alvo);
         });
+      }
+
+      // NOVO: cria uma mancha que fica grudada
+      function criarSplat(lugar) {
+        const splat = document.createElement("div");
+        splat.className = "splat";
+        splat.innerHTML = DESENHO_SPLAT;
+        splat.style.left = lugar.x + "px";
+        splat.style.top = lugar.y + "px";
+        splat.style.rotate = Math.random() * 360 + "deg";
+        document.body.appendChild(splat);
+
+        // passou do limite? tira a mais antiga
+        const todas = document.querySelectorAll(".splat:not(.limpando)");
+        if (todas.length > MAX_SPLATS) todas[0].remove();
+      }
+
+      // NOVO: as manchas escorrem pra baixo e somem
+      function limparSplats() {
+        document
+          .querySelectorAll(".splat:not(.limpando)")
+          .forEach((splat, i) => {
+            setTimeout(() => {
+              splat.classList.add("limpando");
+              splat.addEventListener("animationend", () => splat.remove());
+            }, i * 80);
+          });
       }
 
       // joga confete colorido

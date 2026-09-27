@@ -14,12 +14,6 @@
   ],
   "main": "./extension.js",
   "contributes": {
-    "commands": [
-      {
-        "command": "ratinho-fiscal.helloWorld",
-        "title": "Hello World"
-      }
-    ],
     "viewsContainers": {
       "activitybar": [
         {
@@ -44,6 +38,18 @@
         "command": "ratinho-fiscal.colar",
         "key": "ctrl+v",
         "mac": "cmd+v",
+        "when": "editorTextFocus"
+      },
+      {
+        "command": "ratinho-fiscal.copiar",
+        "key": "ctrl+c",
+        "mac": "cmd+c",
+        "when": "editorTextFocus"
+      },
+      {
+        "command": "ratinho-fiscal.recortar",
+        "key": "ctrl+x",
+        "mac": "cmd+x",
         "when": "editorTextFocus"
       }
     ]
