@@ -2,9 +2,17 @@
 <html lang="pt-BR">
   <head>
     <style>
+      /* ===== base ===== */
+      :root {
+        --largura: 320px;
+      }
+      * {
+        box-sizing: border-box;
+      }
       body {
         position: relative;
         overflow-x: hidden;
+        margin: 0;
         display: flex;
         flex-direction: column;
         align-items: center;
@@ -13,12 +21,27 @@
         font-family: var(--vscode-font-family);
         color: var(--vscode-foreground);
       }
+
+      /* os dois grupos: ratinho e informações */
+      .lado-rato,
+      .lado-info {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 14px;
+        width: 100%;
+        max-width: var(--largura);
+      }
+
+      /* ===== balão ===== */
       .balao {
         margin: 0;
+        width: 100%;
         border: 1.5px solid #3b4261;
         border-radius: 14px;
         padding: 8px 12px;
         text-align: center;
+        overflow-wrap: anywhere;
       }
       body.desconfiado .balao {
         border-color: #e0af68;
@@ -39,13 +62,16 @@
         font-size: 12px;
         text-align: left;
         white-space: pre-wrap;
-        word-break: break-all;
+        overflow-wrap: anywhere;
       }
       .trecho[hidden] {
         display: none;
       }
+
+      /* ===== ratinho ===== */
       svg.rato {
-        width: 180px;
+        width: clamp(110px, 55vw, 200px);
+        height: auto;
         overflow: visible;
       }
       .anima {
@@ -113,21 +139,26 @@
         animation: pula 0.6s ease-in-out infinite;
       }
 
-      /* pomodoro */
+      /* ===== pomodoro ===== */
       .pomodoro {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        width: 100%;
+        border: 1px solid #3b4261;
+        border-radius: 12px;
+        padding: 10px 12px;
+      }
+      .pomodoro-topo {
         display: flex;
         align-items: center;
         gap: 12px;
-        width: 100%;
-        max-width: 260px;
-        border: 1px solid #3b4261;
-        border-radius: 12px;
-        padding: 8px 12px;
-        box-sizing: border-box;
+        min-width: 0;
       }
       .anel {
-        width: 48px;
-        height: 48px;
+        width: clamp(38px, 14vw, 48px);
+        height: auto;
+        aspect-ratio: 1;
         flex-shrink: 0;
         transform: rotate(-90deg);
       }
@@ -152,27 +183,62 @@
         display: flex;
         flex-direction: column;
         flex-grow: 1;
+        min-width: 0;
       }
       .tempo b {
-        font-size: 22px;
+        font-size: clamp(18px, 7vw, 24px);
         font-variant-numeric: tabular-nums;
         line-height: 1.1;
       }
       .tempo small {
         opacity: 0.75;
+        overflow-wrap: anywhere;
       }
       .tomates {
         font-size: 15px;
         white-space: nowrap;
       }
 
-      /* contadores (NOVO: 3 colunas, com as tomatadas) */
+      /* botões */
+      .botoes {
+        display: flex;
+        gap: 6px;
+      }
+      .botoes button {
+        flex: 1;
+        min-width: 0;
+        border: 0;
+        border-radius: 8px;
+        padding: 7px 10px;
+        font-family: inherit;
+        font-size: 13px;
+        font-weight: 600;
+        white-space: nowrap;
+        cursor: pointer;
+        background: var(--vscode-button-background);
+        color: var(--vscode-button-foreground);
+      }
+      .botoes button:hover {
+        background: var(--vscode-button-hoverBackground);
+      }
+      .botoes button.secundario {
+        background: var(--vscode-button-secondaryBackground);
+        color: var(--vscode-button-secondaryForeground);
+      }
+      .botoes button.secundario:hover {
+        background: var(--vscode-button-secondaryHoverBackground);
+      }
+      .botoes button:focus-visible {
+        outline: 2px solid var(--vscode-focusBorder);
+        outline-offset: 2px;
+      }
+
+      /* ===== contadores: 3 caixinhas lado a lado ===== */
       .placar {
         display: grid;
-        grid-template-columns: repeat(3, 1fr);
+        grid-template-columns: repeat(3, minmax(0, 1fr));
         gap: 6px;
         width: 100%;
-        max-width: 260px;
       }
       .placar div {
         border: 1px solid #3b4261;
@@ -185,17 +251,22 @@
       .placar b {
         font-size: 18px;
         font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
       }
       .placar small {
         opacity: 0.75;
         font-size: 11px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
       }
       .placar .tomatadas b {
         color: #f7768e;
       }
       .barra {
         width: 100%;
-        max-width: 260px;
         height: 6px;
         border-radius: 99px;
         background: #9ece6a;
@@ -211,7 +282,7 @@
         transition: width 0.4s ease;
       }
 
-      /* confete */
+      /* ===== efeitos ===== */
       .confete {
         position: absolute;
         top: -12px;
@@ -221,13 +292,11 @@
         pointer-events: none;
         animation: cai 1.8s linear forwards;
       }
-
-      /* tomate voando */
       .tomate {
         position: fixed;
         width: 26px;
         height: 26px;
-        margin: -13px 0 0 -13px;
+        translate: -50% -50%;
         border-radius: 50%;
         background: radial-gradient(
           circle at 35% 35%,
@@ -249,21 +318,113 @@
         border-radius: 50% 50% 0 0;
         background: #73a942;
       }
-      /* NOVO: splat que fica grudado até você explicar */
       .splat {
         position: fixed;
-        width: 130px;
-        height: 130px;
-        margin: -65px 0 0 -65px;
+        width: clamp(80px, 38vw, 130px);
+        aspect-ratio: 1;
+        translate: -50% -50%;
         pointer-events: none;
         z-index: 9;
         opacity: 0.9;
         animation: gruda 0.7s ease-out forwards;
       }
+      .splat svg {
+        width: 100%;
+        height: 100%;
+        display: block;
+      }
       .splat.limpando {
         animation: limpa 0.7s ease-in forwards;
       }
 
+      /* ===== RESPONSIVIDADE ===== */
+
+      /* barra lateral larga: blocos um pouco maiores */
+      @media (min-width: 420px) {
+        :root {
+          --largura: 360px;
+        }
+      }
+
+      /* estreita: os contadores viram lista (nome na esquerda, número na direita) */
+      @media (max-width: 280px) {
+        .placar {
+          grid-template-columns: 1fr;
+          gap: 4px;
+        }
+        .placar div {
+          flex-direction: row-reverse;
+          justify-content: space-between;
+          align-items: baseline;
+          gap: 8px;
+          padding: 5px 10px;
+        }
+        .placar b {
+          font-size: 16px;
+        }
+        .placar small {
+          font-size: 12px;
+        }
+      }
+
+      /* bem estreita: tudo mais compacto */
+      @media (max-width: 200px) {
+        body {
+          padding: 10px;
+          gap: 10px;
+        }
+        .lado-rato,
+        .lado-info {
+          gap: 10px;
+        }
+        .balao {
+          padding: 6px 8px;
+          font-size: 12px;
+        }
+        .pomodoro {
+          padding: 8px;
+        }
+        .pomodoro-topo {
+          flex-wrap: wrap;
+          gap: 8px;
+        }
+        .botoes {
+          flex-direction: column;
+        }
+      }
+
+      /* baixa (pouca altura): ratinho menor pra caber tudo */
+      @media (max-height: 420px) {
+        svg.rato {
+          width: clamp(90px, 30vw, 140px);
+        }
+        .lado-rato,
+        .lado-info {
+          gap: 10px;
+        }
+      }
+
+      /* larga e baixa (painel de baixo, junto do terminal): lado a lado */
+      @media (min-width: 520px) and (max-height: 480px) {
+        body {
+          flex-direction: row;
+          align-items: center;
+          justify-content: center;
+          gap: 28px;
+          padding: 12px 20px;
+        }
+        .lado-rato {
+          max-width: 240px;
+        }
+        .lado-info {
+          max-width: 340px;
+        }
+        svg.rato {
+          width: clamp(90px, 18vw, 150px);
+        }
+      }
+
+      /* ===== animações ===== */
       @keyframes bigode {
         50% {
           transform: rotate(3deg);
@@ -379,244 +540,269 @@
     </style>
   </head>
   <body class="feliz">
-    <p class="balao" role="status">
-      <span id="fala">Tô de olho na panela e no seu código.</span
-      ><code class="trecho" id="trecho" hidden></code>
-    </p>
-    <svg
-      class="rato"
-      viewBox="0 0 200 230"
-      role="img"
-      aria-label="Ratinho chef"
-    >
-      <path
-        d="M140 196 C 182 200, 192 162, 172 140 S 148 122, 160 104"
-        fill="none"
-        stroke="#e8a0b4"
-        stroke-width="5"
-        stroke-linecap="round"
-      />
-      <ellipse cx="80" cy="214" rx="14" ry="7" fill="#e8a0b4" />
-      <g class="pe anima">
-        <ellipse cx="120" cy="214" rx="14" ry="7" fill="#e8a0b4" />
-      </g>
-      <ellipse cx="100" cy="170" rx="46" ry="44" fill="#8f96b3" />
-      <path d="M74 158 h52 v38 q-26 13 -52 0z" fill="#eef0f8" />
-      <circle cx="62" cy="72" r="22" fill="#8f96b3" />
-      <circle cx="62" cy="72" r="13" fill="#e8a0b4" />
-      <circle cx="138" cy="72" r="22" fill="#8f96b3" />
-      <circle cx="138" cy="72" r="13" fill="#e8a0b4" />
-      <circle cx="100" cy="104" r="40" fill="#9ea5c2" />
-      <circle cx="84" cy="42" r="13" fill="#eef0f8" />
-      <circle cx="100" cy="34" r="15" fill="#eef0f8" />
-      <circle cx="116" cy="42" r="13" fill="#eef0f8" />
-      <rect x="78" y="44" width="44" height="22" rx="4" fill="#eef0f8" />
-      <rect x="78" y="60" width="44" height="6" rx="2" fill="#d4d8ea" />
-
-      <!-- bochechas -->
-      <circle
-        class="so-bravo"
-        cx="74"
-        cy="118"
-        r="7"
-        fill="#f7768e"
-        opacity=".55"
-      />
-      <circle
-        class="so-bravo"
-        cx="126"
-        cy="118"
-        r="7"
-        fill="#f7768e"
-        opacity=".55"
-      />
-      <circle
-        class="so-festa"
-        cx="74"
-        cy="116"
-        r="6"
-        fill="#f7768e"
-        opacity=".35"
-      />
-      <circle
-        class="so-festa"
-        cx="126"
-        cy="116"
-        r="6"
-        fill="#f7768e"
-        opacity=".35"
-      />
-
-      <!-- olhos -->
-      <g class="so-feliz olhos anima">
-        <circle cx="86" cy="100" r="5.5" fill="#1a1b26" />
-        <circle cx="114" cy="100" r="5.5" fill="#1a1b26" />
-        <circle cx="87.8" cy="98" r="1.7" fill="#fff" />
-        <circle cx="115.8" cy="98" r="1.7" fill="#fff" />
-      </g>
-      <g
-        class="so-desconfiado"
-        stroke="#1a1b26"
-        stroke-linecap="round"
-        fill="none"
+    <!-- grupo 1: balão e ratinho -->
+    <div class="lado-rato">
+      <p class="balao" role="status">
+        <span id="fala">Tô de olho na panela e no seu código.</span
+        ><code class="trecho" id="trecho" hidden></code>
+      </p>
+      <svg
+        class="rato"
+        viewBox="0 0 200 230"
+        role="img"
+        aria-label="Ratinho chef"
       >
-        <path d="M79 101 h14" stroke-width="4" />
-        <path d="M107 101 h14" stroke-width="4" />
-        <path d="M105 88 Q114 83 123 89" stroke-width="3" />
-      </g>
-      <g class="so-bravo" stroke="#1a1b26" stroke-linecap="round">
-        <path d="M76 89 L95 96" stroke-width="4" />
-        <path d="M124 89 L105 96" stroke-width="4" />
-        <circle cx="86" cy="103" r="4.5" fill="#1a1b26" stroke="none" />
-        <circle cx="114" cy="103" r="4.5" fill="#1a1b26" stroke="none" />
-      </g>
-      <g
-        class="so-festa"
-        stroke="#1a1b26"
-        stroke-linecap="round"
-        fill="none"
-        stroke-width="4"
-      >
-        <path d="M79 103 Q86 93 93 103" />
-        <path d="M107 103 Q114 93 121 103" />
-      </g>
-
-      <ellipse cx="100" cy="114" rx="6" ry="4.5" fill="#e8a0b4" />
-      <g
-        class="bigode anima"
-        stroke="#5c6488"
-        stroke-width="1.6"
-        stroke-linecap="round"
-      >
-        <path d="M92 116 L62 109" />
-        <path d="M92 118 L62 122" />
-        <path d="M108 116 L138 109" />
-        <path d="M108 118 L138 122" />
-      </g>
-
-      <!-- bocas -->
-      <path
-        class="so-feliz"
-        d="M92 124 Q100 131 108 124"
-        stroke="#1a1b26"
-        stroke-width="3"
-        fill="none"
-        stroke-linecap="round"
-      />
-      <path
-        class="so-desconfiado"
-        d="M93 126 Q100 123 107 127"
-        stroke="#1a1b26"
-        stroke-width="3"
-        fill="none"
-        stroke-linecap="round"
-      />
-      <path
-        class="so-bravo"
-        d="M92 129 Q100 121 108 129"
-        stroke="#1a1b26"
-        stroke-width="3"
-        fill="none"
-        stroke-linecap="round"
-      />
-      <path class="so-festa" d="M90 122 Q100 138 110 122 Z" fill="#1a1b26" />
-
-      <!-- panela -->
-      <g
-        class="so-feliz vapor anima"
-        stroke="#a9b1d6"
-        stroke-width="2.5"
-        fill="none"
-        stroke-linecap="round"
-      >
-        <path d="M78 166 q-5 -7 0 -14 q5 -7 0 -14" />
-        <path d="M100 164 q-5 -7 0 -14 q5 -7 0 -14" />
-        <path d="M122 166 q-5 -7 0 -14 q5 -7 0 -14" />
-      </g>
-      <rect x="58" y="178" width="84" height="36" rx="8" fill="#414868" />
-      <rect x="52" y="173" width="96" height="9" rx="4.5" fill="#565f89" />
-      <rect x="44" y="182" width="14" height="6" rx="3" fill="#565f89" />
-      <rect x="142" y="182" width="14" height="6" rx="3" fill="#565f89" />
-      <circle cx="50" cy="180" r="7.5" fill="#9ea5c2" />
-      <g class="colher anima">
-        <line
-          x1="112"
-          y1="186"
-          x2="134"
-          y2="140"
-          stroke="#e0af68"
+        <path
+          d="M140 196 C 182 200, 192 162, 172 140 S 148 122, 160 104"
+          fill="none"
+          stroke="#e8a0b4"
           stroke-width="5"
           stroke-linecap="round"
         />
-        <circle cx="134" cy="140" r="8" fill="#9ea5c2" />
-      </g>
+        <ellipse cx="80" cy="214" rx="14" ry="7" fill="#e8a0b4" />
+        <g class="pe anima">
+          <ellipse cx="120" cy="214" rx="14" ry="7" fill="#e8a0b4" />
+        </g>
+        <ellipse cx="100" cy="170" rx="46" ry="44" fill="#8f96b3" />
+        <path d="M74 158 h52 v38 q-26 13 -52 0z" fill="#eef0f8" />
+        <circle cx="62" cy="72" r="22" fill="#8f96b3" />
+        <circle cx="62" cy="72" r="13" fill="#e8a0b4" />
+        <circle cx="138" cy="72" r="22" fill="#8f96b3" />
+        <circle cx="138" cy="72" r="13" fill="#e8a0b4" />
+        <circle cx="100" cy="104" r="40" fill="#9ea5c2" />
+        <circle cx="84" cy="42" r="13" fill="#eef0f8" />
+        <circle cx="100" cy="34" r="15" fill="#eef0f8" />
+        <circle cx="116" cy="42" r="13" fill="#eef0f8" />
+        <rect x="78" y="44" width="44" height="22" rx="4" fill="#eef0f8" />
+        <rect x="78" y="60" width="44" height="6" rx="2" fill="#d4d8ea" />
 
-      <!-- braços pra cima (festa) -->
-      <g
-        class="so-festa"
-        stroke="#9ea5c2"
-        stroke-width="13"
-        stroke-linecap="round"
-      >
-        <path d="M64 158 L40 120" />
-        <path d="M136 158 L160 120" />
-      </g>
+        <!-- bochechas -->
+        <circle
+          class="so-bravo"
+          cx="74"
+          cy="118"
+          r="7"
+          fill="#f7768e"
+          opacity=".55"
+        />
+        <circle
+          class="so-bravo"
+          cx="126"
+          cy="118"
+          r="7"
+          fill="#f7768e"
+          opacity=".55"
+        />
+        <circle
+          class="so-festa"
+          cx="74"
+          cy="116"
+          r="6"
+          fill="#f7768e"
+          opacity=".35"
+        />
+        <circle
+          class="so-festa"
+          cx="126"
+          cy="116"
+          r="6"
+          fill="#f7768e"
+          opacity=".35"
+        />
 
-      <text
-        class="so-desconfiado interroga anima"
-        x="158"
-        y="46"
-        font-size="30"
-        font-weight="700"
-        fill="#e0af68"
-      >
-        ?
-      </text>
-    </svg>
+        <!-- olhos -->
+        <g class="so-feliz olhos anima">
+          <circle cx="86" cy="100" r="5.5" fill="#1a1b26" />
+          <circle cx="114" cy="100" r="5.5" fill="#1a1b26" />
+          <circle cx="87.8" cy="98" r="1.7" fill="#fff" />
+          <circle cx="115.8" cy="98" r="1.7" fill="#fff" />
+        </g>
+        <g
+          class="so-desconfiado"
+          stroke="#1a1b26"
+          stroke-linecap="round"
+          fill="none"
+        >
+          <path d="M79 101 h14" stroke-width="4" />
+          <path d="M107 101 h14" stroke-width="4" />
+          <path d="M105 88 Q114 83 123 89" stroke-width="3" />
+        </g>
+        <g class="so-bravo" stroke="#1a1b26" stroke-linecap="round">
+          <path d="M76 89 L95 96" stroke-width="4" />
+          <path d="M124 89 L105 96" stroke-width="4" />
+          <circle cx="86" cy="103" r="4.5" fill="#1a1b26" stroke="none" />
+          <circle cx="114" cy="103" r="4.5" fill="#1a1b26" stroke="none" />
+        </g>
+        <g
+          class="so-festa"
+          stroke="#1a1b26"
+          stroke-linecap="round"
+          fill="none"
+          stroke-width="4"
+        >
+          <path d="M79 103 Q86 93 93 103" />
+          <path d="M107 103 Q114 93 121 103" />
+        </g>
 
-    <!-- pomodoro -->
-    <div class="pomodoro" id="pomodoro">
-      <svg class="anel" viewBox="0 0 64 64" aria-hidden="true">
-        <circle class="trilho" cx="32" cy="32" r="28" />
-        <circle class="progresso" id="progresso" cx="32" cy="32" r="28" />
+        <ellipse cx="100" cy="114" rx="6" ry="4.5" fill="#e8a0b4" />
+        <g
+          class="bigode anima"
+          stroke="#5c6488"
+          stroke-width="1.6"
+          stroke-linecap="round"
+        >
+          <path d="M92 116 L62 109" />
+          <path d="M92 118 L62 122" />
+          <path d="M108 116 L138 109" />
+          <path d="M108 118 L138 122" />
+        </g>
+
+        <!-- bocas -->
+        <path
+          class="so-feliz"
+          d="M92 124 Q100 131 108 124"
+          stroke="#1a1b26"
+          stroke-width="3"
+          fill="none"
+          stroke-linecap="round"
+        />
+        <path
+          class="so-desconfiado"
+          d="M93 126 Q100 123 107 127"
+          stroke="#1a1b26"
+          stroke-width="3"
+          fill="none"
+          stroke-linecap="round"
+        />
+        <path
+          class="so-bravo"
+          d="M92 129 Q100 121 108 129"
+          stroke="#1a1b26"
+          stroke-width="3"
+          fill="none"
+          stroke-linecap="round"
+        />
+        <path class="so-festa" d="M90 122 Q100 138 110 122 Z" fill="#1a1b26" />
+
+        <!-- panela -->
+        <g
+          class="so-feliz vapor anima"
+          stroke="#a9b1d6"
+          stroke-width="2.5"
+          fill="none"
+          stroke-linecap="round"
+        >
+          <path d="M78 166 q-5 -7 0 -14 q5 -7 0 -14" />
+          <path d="M100 164 q-5 -7 0 -14 q5 -7 0 -14" />
+          <path d="M122 166 q-5 -7 0 -14 q5 -7 0 -14" />
+        </g>
+        <rect x="58" y="178" width="84" height="36" rx="8" fill="#414868" />
+        <rect x="52" y="173" width="96" height="9" rx="4.5" fill="#565f89" />
+        <rect x="44" y="182" width="14" height="6" rx="3" fill="#565f89" />
+        <rect x="142" y="182" width="14" height="6" rx="3" fill="#565f89" />
+        <circle cx="50" cy="180" r="7.5" fill="#9ea5c2" />
+        <g class="colher anima">
+          <line
+            x1="112"
+            y1="186"
+            x2="134"
+            y2="140"
+            stroke="#e0af68"
+            stroke-width="5"
+            stroke-linecap="round"
+          />
+          <circle cx="134" cy="140" r="8" fill="#9ea5c2" />
+        </g>
+
+        <!-- braços pra cima (festa) -->
+        <g
+          class="so-festa"
+          stroke="#9ea5c2"
+          stroke-width="13"
+          stroke-linecap="round"
+        >
+          <path d="M64 158 L40 120" />
+          <path d="M136 158 L160 120" />
+        </g>
+
+        <text
+          class="so-desconfiado interroga anima"
+          x="158"
+          y="46"
+          font-size="30"
+          font-weight="700"
+          fill="#e0af68"
+        >
+          ?
+        </text>
       </svg>
-      <div class="tempo">
-        <b id="relogio">00:00</b>
-        <small id="rotulo-tempo">codando sem colar</small>
-      </div>
-      <span
-        class="tomates"
-        id="tomates"
-        title="Pomodoros completos (25 min sem colar)"
-        >🏆 0</span
-      >
     </div>
 
-    <!-- contadores -->
-    <div class="placar">
-      <div title="Caracteres digitados">
-        <b id="n-digitado">0</b><small>digitados</small>
+    <!-- grupo 2: pomodoro e contadores -->
+    <div class="lado-info">
+      <div class="pomodoro pausado" id="pomodoro">
+        <div class="pomodoro-topo">
+          <svg class="anel" viewBox="0 0 64 64" aria-hidden="true">
+            <circle class="trilho" cx="32" cy="32" r="28" />
+            <circle class="progresso" id="progresso" cx="32" cy="32" r="28" />
+          </svg>
+          <div class="tempo">
+            <b id="relogio">00:00</b>
+            <small id="rotulo-tempo">parado: aperte Iniciar</small>
+          </div>
+          <span
+            class="tomates"
+            id="tomates"
+            title="Pomodoros completos (25 min sem colar)"
+            >🏆 0</span
+          >
+        </div>
+        <div class="botoes">
+          <button type="button" id="b-iniciar">▶ Iniciar</button>
+          <button type="button" id="b-reiniciar" class="secundario">
+            ↺ Reiniciar
+          </button>
+        </div>
       </div>
-      <div title="Caracteres colados">
-        <b id="n-colado">0</b><small>colados</small>
+
+      <div class="placar">
+        <div title="Caracteres digitados">
+          <b id="n-digitado">0</b><small>digitados</small>
+        </div>
+        <div title="Caracteres colados">
+          <b id="n-colado">0</b><small>colados</small>
+        </div>
+        <div class="tomatadas" title="Tomates que você levou">
+          <b id="n-tomatadas">0</b><small>tomatadas</small>
+        </div>
       </div>
-      <div class="tomatadas" title="Tomates que você levou">
-        <b id="n-tomatadas">0</b><small>tomatadas</small>
+      <div class="barra" aria-hidden="true">
+        <span id="barra-colado"></span>
       </div>
     </div>
-    <div class="barra" aria-hidden="true"><span id="barra-colado"></span></div>
 
     <script>
       // o "telefone" pra falar com a extensão
       const vscode = acquireVsCodeApi();
       const fala = document.getElementById("fala");
       const trecho = document.getElementById("trecho");
+      const bIniciar = document.getElementById("b-iniciar");
+      const bReiniciar = document.getElementById("b-reiniciar");
       const VOLTA = 175.9; // tamanho do contorno do anel
       const MAX_SPLATS = 14; // no máximo 14 manchas na tela
+      let rodandoAgora = false; // o pomodoro está rodando?
 
-      // o desenho da mancha de tomate
+      // os botões mandam recado pra extensão
+      bIniciar.addEventListener("click", () => {
+        vscode.postMessage({ tipo: rodandoAgora ? "pausar" : "iniciar" });
+      });
+      bReiniciar.addEventListener("click", () => {
+        vscode.postMessage({ tipo: "reiniciar" });
+      });
+
+      // o desenho da mancha de tomate (o tamanho vem do CSS)
       const DESENHO_SPLAT = `
-      <svg viewBox="0 0 120 120" width="130" height="130">
+      <svg viewBox="0 0 120 120">
         <path fill="#e5484d" d="M60 14c9 0 11 12 19 14s18-6 22 3-7 14-4 22 14 12 9 21-16 2-21 9 2 20-8 23-12-9-20-9-13 12-22 6 1-17-5-23-19-2-21-12 11-12 11-20S14 36 20 29s16 3 23-1 8-14 17-14z"/>
         <path fill="#e5484d" d="M50 94c0 10 3 22 7 22s5-9 5-20z"/>
         <path fill="#e5484d" d="M78 88c0 7 2 14 5 14s4-6 3-14z"/>
@@ -637,12 +823,12 @@
           trecho.hidden = !recado.codigo;
           if (recado.humor === "festa") soltarConfete();
           if (recado.tomates) jogarTomates(recado.tomates);
-          // NOVO: feliz ou em festa? limpa as manchas
+          // feliz ou em festa? limpa as manchas
           if (recado.humor === "feliz" || recado.humor === "festa")
             limparSplats();
         }
 
-        // NOVO: redesenha as manchas que já estavam (quando o painel recarrega)
+        // redesenha as manchas que já estavam (quando o painel recarrega)
         if (recado.tipo === "splats") {
           for (let i = 0; i < recado.quantidade; i++)
             criarSplat(lugarAleatorio());
@@ -678,6 +864,10 @@
           document
             .getElementById("pomodoro")
             .classList.toggle("pausado", recado.pausado);
+
+          // o botão mostra Iniciar ou Pausar
+          rodandoAgora = recado.rodando;
+          bIniciar.textContent = recado.rodando ? "⏸ Pausar" : "▶ Iniciar";
         }
       });
 
@@ -721,7 +911,7 @@
         });
       }
 
-      // NOVO: cria uma mancha que fica grudada
+      // cria uma mancha que fica grudada
       function criarSplat(lugar) {
         const splat = document.createElement("div");
         splat.className = "splat";
@@ -736,7 +926,7 @@
         if (todas.length > MAX_SPLATS) todas[0].remove();
       }
 
-      // NOVO: as manchas escorrem pra baixo e somem
+      // as manchas escorrem pra baixo e somem
       function limparSplats() {
         document
           .querySelectorAll(".splat:not(.limpando)")

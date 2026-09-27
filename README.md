@@ -1,65 +1,25 @@
-# ratinho-fiscal README
+# Ratinho Fiscal 🐀
 
-This is the README for your extension "ratinho-fiscal". After writing up a brief description, we recommend including the following sections.
+Um ratinho chef que mora no VS Code e cobra quando você cola código em vez de digitar.
 
-## Features
+## O que ele faz
 
-Describe specific features of your extension including screenshots of your extension in action. Image paths are relative to this README file.
+- **Mexe a panela** enquanto você digita.
+- **Fica desconfiado** quando você cola 3 linhas ou mais, e joga um tomate 🍅.
+- **Fica bravo** se você colar de novo sem explicar, e joga 3 tomates.
+- **Pede pra você explicar** uma linha do código colado com um comentário logo acima dela.
+- **Faz festa** a cada 25 minutos codando sem colar (pomodoro 🏆).
+- **Não briga** quando você só muda o seu próprio código de lugar (`Ctrl + X` / `Ctrl + V`).
 
-For example if there is an image subfolder under your extension project workspace:
+## Placar
 
-\!\[feature X\]\(images/feature-x.png\)
+- Na barra de baixo: quanto por cento foi digitado e quanto foi colado.
+- No painel: caracteres digitados, colados, tomatadas levadas e pomodoros.
 
-> Tip: Many popular extensions utilize animations. This is an excellent way to show off your extension! We recommend short, focused animations that are easy to follow.
+## Instalar
 
-## Requirements
+1. Baixe o arquivo `.vsix` na página de releases.
+2. No terminal: `code --install-extension ratinho-fiscal-0.0.1.vsix`
+3. Reinicie o VS Code e clique no ícone do ratinho na barra da esquerda.
 
-If you have any requirements or dependencies, add a section describing those and how to install and configure them.
-
-## Extension Settings
-
-Include if your extension adds any VS Code settings through the `contributes.configuration` extension point.
-
-For example:
-
-This extension contributes the following settings:
-
-* `myExtension.enable`: Enable/disable this extension.
-* `myExtension.thing`: Set to `blah` to do something.
-
-## Known Issues
-
-Calling out known issues can help limit users opening duplicate issues against your extension.
-
-## Release Notes
-
-Users appreciate release notes as you update your extension.
-
-### 1.0.0
-
-Initial release of ...
-
-### 1.0.1
-
-Fixed issue #.
-
-### 1.1.0
-
-Added features X, Y, and Z.
-
----
-
-## Working with Markdown
-
-You can author your README using Visual Studio Code.  Here are some useful editor keyboard shortcuts:
-
-* Split the editor (`Cmd+\` on macOS or `Ctrl+\` on Windows and Linux)
-* Toggle preview (`Shift+Cmd+V` on macOS or `Shift+Ctrl+V` on Windows and Linux)
-* Press `Ctrl+Space` (Windows, Linux, macOS) to see a list of Markdown snippets
-
-## For more information
-
-* [Visual Studio Code's Markdown Support](http://code.visualstudio.com/docs/languages/markdown)
-* [Markdown Syntax Reference](https://help.github.com/articles/markdown-basics/)
-
-**Enjoy!**
+Feito por [@s3vla](https://github.com/s3vla).

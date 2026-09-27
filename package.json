@@ -3,6 +3,7 @@
   "displayName": "Ratinho Fiscal",
   "description": "Um ratinho que cobra quando você cola código em vez de digitar",
   "version": "0.0.1",
+  "publisher": "s3vla",
   "engines": {
     "vscode": "^1.138.0"
   },

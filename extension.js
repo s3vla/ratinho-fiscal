@@ -17,7 +17,7 @@ let pendente = false;
 let digitados = 0;
 let colados = 0;
 let placar;
-// NOVO: tomatadas levadas no total, e as que ainda estão grudadas na tela
+// tomatadas levadas no total, e as que ainda estão grudadas na tela
 let tomatadas = 0;
 let splatsNaTela = 0;
 // lembra o humor, a fala e o trecho atuais, pra reenviar quando o painel recarregar
@@ -27,7 +27,8 @@ let codigoAtual = null;
 // o pomodoro
 let segundos = 0;
 let pomodoros = 0;
-let ultimaAtividade = Date.now();
+let ultimaAtividade = 0; // começa sem atividade
+let rodando = false; // você apertou Iniciar?
 // manchas de tomate no código
 let tomate;
 let manchas = [];
@@ -70,17 +71,33 @@ function activate(context) {
       const arquivo = path.join(context.extensionPath, "media", "painel.html");
       painel.webview.html = fs.readFileSync(arquivo, "utf8");
 
-      // quando o painel avisar que carregou, manda tudo pra ele
+      // escuta os recados do painel
       painel.webview.onDidReceiveMessage((recado) => {
+        // o painel carregou: manda tudo pra ele
         if (recado.tipo === "pronto") {
           enviarHumor(0);
           atualizarPlacar();
           enviarTempo();
-          // NOVO: redesenha as manchas que ainda estavam na tela
+          // redesenha as manchas que ainda estavam na tela
           painel.webview.postMessage({
             tipo: "splats",
             quantidade: splatsNaTela,
           });
+        }
+
+        // os botões do pomodoro
+        if (recado.tipo === "iniciar") {
+          rodando = true;
+          ultimaAtividade = Date.now(); // dá 2 minutos pra você começar a digitar
+          enviarTempo();
+        }
+        if (recado.tipo === "pausar") {
+          rodando = false;
+          enviarTempo();
+        }
+        if (recado.tipo === "reiniciar") {
+          segundos = 0;
+          enviarTempo();
         }
       });
     },
@@ -232,7 +249,7 @@ function activate(context) {
       ) {
         pendente = false;
         linhaPedida = null;
-        splatsNaTela = 0; // NOVO: o painel limpa as manchas quando fica feliz
+        splatsNaTela = 0; // o painel limpa as manchas quando fica feliz
         limparManchas();
         avisar("feliz", "Agora sim! Quem explica é porque entendeu.");
       } else {
@@ -333,7 +350,7 @@ function limparManchas() {
 // o relógio está pausado?
 function estaPausado() {
   const parado = Date.now() - ultimaAtividade > PARADO;
-  return pendente || parado;
+  return !rodando || pendente || parado;
 }
 
 // manda o tempo pro painel
@@ -341,7 +358,8 @@ function enviarTempo() {
   if (!painelAtual) return;
 
   let motivo = "codando sem colar";
-  if (pendente) motivo = "pausado: falta o comentário";
+  if (!rodando) motivo = "parado: aperte Iniciar";
+  else if (pendente) motivo = "pausado: falta o comentário";
   else if (estaPausado()) motivo = "pausado: sem digitar";
 
   painelAtual.webview.postMessage({
@@ -351,6 +369,7 @@ function enviarTempo() {
     pomodoros: pomodoros,
     pausado: estaPausado(),
     motivo: motivo,
+    rodando: rodando,
   });
 }
 
@@ -364,7 +383,7 @@ function porcentagemColada() {
 // atualiza o placar na barra de baixo e no painel
 function atualizarPlacar() {
   const colado = porcentagemColada();
-  placar.text = `$(edit) ${100 - colado}% digitado  $(clippy) ${colado}% colado`;
+  placar.text = `$(edit) ${100 - colado}%  $(clippy) ${colado}%`;
 
   if (painelAtual) {
     painelAtual.webview.postMessage({
@@ -383,7 +402,7 @@ function avisar(humor, fala, tomates = 0, codigo = null) {
   falaAtual = fala;
   codigoAtual = codigo;
 
-  // NOVO: soma as tomatadas
+  // soma as tomatadas
   if (tomates > 0) {
     tomatadas += tomates;
     splatsNaTela = Math.min(splatsNaTela + tomates, 14);
