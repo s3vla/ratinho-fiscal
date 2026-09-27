@@ -4,6 +4,10 @@
   "description": "Um ratinho que cobra quando você cola código em vez de digitar",
   "version": "0.0.1",
   "publisher": "s3vla",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/s3vla/ratinho-fiscal"
+  },
   "engines": {
     "vscode": "^1.138.0"
   },
@@ -53,7 +57,41 @@
         "mac": "cmd+x",
         "when": "editorTextFocus"
       }
-    ]
+    ],
+    "configuration": {
+      "title": "Ratinho Fiscal",
+      "properties": {
+        "ratinhoFiscal.linhasMinimas": {
+          "type": "number",
+          "default": 3,
+          "minimum": 1,
+          "description": "A partir de quantas linhas coladas o ratinho reclama."
+        },
+        "ratinhoFiscal.metaPomodoroMinutos": {
+          "type": "number",
+          "default": 25,
+          "minimum": 1,
+          "maximum": 120,
+          "description": "Minutos codando sem colar pra ganhar um troféu."
+        },
+        "ratinhoFiscal.pausaSemDigitarMinutos": {
+          "type": "number",
+          "default": 2,
+          "minimum": 1,
+          "description": "Depois de quantos minutos sem digitar o pomodoro pausa sozinho."
+        },
+        "ratinhoFiscal.tomatesVoando": {
+          "type": "boolean",
+          "default": true,
+          "description": "O ratinho joga tomates no painel quando você cola."
+        },
+        "ratinhoFiscal.manchasNoCodigo": {
+          "type": "boolean",
+          "default": true,
+          "description": "Deixa as linhas coladas manchadas de tomate até você explicar."
+        }
+      }
+    }
   },
   "scripts": {
     "lint": "eslint .",

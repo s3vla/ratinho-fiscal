@@ -4,21 +4,19 @@ const vscode = require("vscode");
 const fs = require("fs");
 const path = require("path");
 
-// meta do pomodoro, em segundos (25 minutos)
-const META = 25 * 60;
-// quanto tempo sem digitar conta como "parado" (2 minutos)
-const PARADO = 2 * 60 * 1000;
-
 // guarda o painel aberto, pra poder mandar recados pra ele
 let painelAtual;
+// NOVO: a memória que sobrevive quando o VS Code fecha
+let memoria;
 // lembra se tem código colado sem explicação
 let pendente = false;
-// o placar
+// o placar do dia
 let digitados = 0;
 let colados = 0;
-let placar;
-// tomatadas levadas no total, e as que ainda estão grudadas na tela
 let tomatadas = 0;
+let pomodoros = 0;
+let placar;
+// manchas de tomate que ainda estão na tela do painel
 let splatsNaTela = 0;
 // lembra o humor, a fala e o trecho atuais, pra reenviar quando o painel recarregar
 let humorAtual = "feliz";
@@ -26,20 +24,48 @@ let falaAtual = "Tô de olho na panela e no seu código.";
 let codigoAtual = null;
 // o pomodoro
 let segundos = 0;
-let pomodoros = 0;
 let ultimaAtividade = 0; // começa sem atividade
 let rodando = false; // você apertou Iniciar?
-// manchas de tomate no código
+// o estilo da mancha de tomate no código
 let tomate;
-let manchas = [];
-let editorManchado;
+// NOVO: manchas de cada arquivo (endereço do arquivo → lista de { inicio, fim })
+const manchas = new Map();
 // o último texto copiado de dentro do VS Code
 let copiadoAqui = "";
 // a linha que o ratinho quer que você explique
 let linhaPedida = null;
+// NOVO: controle do dia
+let diaAtual = hojeComoTexto();
+let mudouDesdeSalvar = false;
 
-// roda uma vez, quando a extensão liga
+// ===== NOVO: configurações =====
+
+function config() {
+  return vscode.workspace.getConfiguration("ratinhoFiscal");
+}
+function linhasMinimas() {
+  return config().get("linhasMinimas", 3);
+}
+function metaMinutos() {
+  return config().get("metaPomodoroMinutos", 25);
+}
+function pausaEmMs() {
+  return config().get("pausaSemDigitarMinutos", 2) * 60 * 1000;
+}
+function tomatesLigados() {
+  return config().get("tomatesVoando", true);
+}
+function manchasLigadas() {
+  return config().get("manchasNoCodigo", true);
+}
+
+// ===== roda uma vez, quando a extensão liga =====
+
 function activate(context) {
+  // NOVO: carrega o dia salvo
+  memoria = context.globalState;
+  carregarDia();
+
   // cria o placar na barra de baixo
   placar = vscode.window.createStatusBarItem(
     vscode.StatusBarAlignment.Right,
@@ -78,7 +104,6 @@ function activate(context) {
           enviarHumor(0);
           atualizarPlacar();
           enviarTempo();
-          // redesenha as manchas que ainda estavam na tela
           painel.webview.postMessage({
             tipo: "splats",
             quantidade: splatsNaTela,
@@ -88,7 +113,7 @@ function activate(context) {
         // os botões do pomodoro
         if (recado.tipo === "iniciar") {
           rodando = true;
-          ultimaAtividade = Date.now(); // dá 2 minutos pra você começar a digitar
+          ultimaAtividade = Date.now(); // dá um tempo pra você começar a digitar
           enviarTempo();
         }
         if (recado.tipo === "pausar") {
@@ -132,6 +157,7 @@ function activate(context) {
     async function () {
       const texto = await vscode.env.clipboard.readText();
       const linhas = texto.split("\n").length;
+      const minimo = linhasMinimas();
 
       // veio de dentro do VS Code? então é código seu mudando de lugar
       const doProprioCodigo = texto === copiadoAqui;
@@ -146,7 +172,7 @@ function activate(context) {
 
       // código seu não conta como colado e não leva tomate
       if (doProprioCodigo) {
-        if (linhas >= 3 && !pendente) {
+        if (linhas >= minimo && !pendente) {
           avisar(
             "feliz",
             "Mudando seu próprio código de lugar? Pode, esse é seu.",
@@ -160,18 +186,14 @@ function activate(context) {
       atualizarPlacar();
 
       // colou pouco? deixa passar
-      if (linhas < 3) return;
+      if (linhas < minimo) return;
 
       // colou um bloco, o pomodoro zera
       segundos = 0;
 
-      // mancha de tomate do início até onde o cursor parou
+      // NOVO: guarda a mancha deste arquivo
       if (editor && inicio) {
-        const fim = editor.selection.active;
-        if (editorManchado !== editor) manchas = [];
-        manchas.push(new vscode.Range(inicio, fim));
-        editor.setDecorations(tomate, manchas);
-        editorManchado = editor;
+        adicionarMancha(editor, inicio.line, editor.selection.active.line);
       }
 
       // escolhe a linha que ele quer que você explique
@@ -216,6 +238,9 @@ function activate(context) {
     if (tipo !== "file" && tipo !== "untitled") return;
 
     for (const mudanca of evento.contentChanges) {
+      // NOVO: se linhas entraram ou saíram, as manchas se mexem junto
+      ajustarManchas(evento.document, mudanca);
+
       // digitou tecla por tecla? (1 ou 2 caracteres, como "a" ou "()")
       if (mudanca.text.length >= 1 && mudanca.text.length <= 2) {
         digitados += mudanca.text.length;
@@ -265,16 +290,40 @@ function activate(context) {
     atualizarPlacar();
   });
 
+  // NOVO: trocou de arquivo? pinta as manchas dele
+  const trocouArquivo = vscode.window.onDidChangeActiveTextEditor((editor) => {
+    if (editor) pintar(editor);
+  });
+  const mudouTela = vscode.window.onDidChangeVisibleTextEditors(() =>
+    pintarTodos(),
+  );
+
+  // NOVO: mudou alguma configuração do ratinho? aplica na hora
+  const mudouConfig = vscode.workspace.onDidChangeConfiguration((evento) => {
+    if (evento.affectsConfiguration("ratinhoFiscal")) {
+      pintarTodos();
+      enviarTempo();
+    }
+  });
+
   // o relógio, que roda a cada 1 segundo
+  let tiques = 0;
   const relogio = setInterval(() => {
+    // NOVO: o dia virou?
+    if (hojeComoTexto() !== diaAtual) virarDia();
+
     if (!estaPausado()) {
       segundos++;
 
       // chegou na meta? festa!
-      if (segundos >= META) {
+      if (segundos >= metaMinutos() * 60) {
         segundos = 0;
         pomodoros++;
-        avisar("festa", "25 minutos só na mão! Merece um queijo.");
+        mudouDesdeSalvar = true;
+        avisar(
+          "festa",
+          metaMinutos() + " minutos só na mão! Merece um queijo.",
+        );
 
         // depois de 8 segundos, volta pra panela
         setTimeout(() => {
@@ -286,6 +335,10 @@ function activate(context) {
     }
 
     enviarTempo();
+
+    // NOVO: a cada 10 segundos, salva o dia (se algo mudou)
+    tiques++;
+    if (tiques % 10 === 0 && mudouDesdeSalvar) salvarDia();
   }, 1000);
 
   // guarda tudo na lista de limpeza
@@ -297,11 +350,138 @@ function activate(context) {
     colar,
     ouvinte,
     tomate,
-    {
-      dispose: () => clearInterval(relogio),
-    },
+    trocouArquivo,
+    mudouTela,
+    mudouConfig,
+    { dispose: () => clearInterval(relogio) },
   );
 }
+
+// ===== NOVO: salvar o dia =====
+
+// a data de hoje no formato "2026-09-27"
+function hojeComoTexto() {
+  const d = new Date();
+  const mes = String(d.getMonth() + 1).padStart(2, "0");
+  const dia = String(d.getDate()).padStart(2, "0");
+  return d.getFullYear() + "-" + mes + "-" + dia;
+}
+
+// o placar de hoje, pronto pra guardar
+function placarDoDia() {
+  return { data: diaAtual, digitados, colados, tomatadas, pomodoros };
+}
+
+// lê o dia salvo quando a extensão liga
+function carregarDia() {
+  const salvo = memoria.get("dia");
+  if (!salvo) return;
+
+  if (salvo.data === diaAtual) {
+    // ainda é o mesmo dia: continua de onde parou
+    digitados = salvo.digitados;
+    colados = salvo.colados;
+    tomatadas = salvo.tomatadas;
+    pomodoros = salvo.pomodoros;
+  } else {
+    // é outro dia: guarda o antigo e dá bom dia com o resumo
+    memoria.update("ontem", salvo);
+    falaAtual = resumo(salvo);
+  }
+}
+
+// grava o dia na memória
+function salvarDia() {
+  mudouDesdeSalvar = false;
+  return memoria.update("dia", placarDoDia());
+}
+
+// o dia virou com o VS Code aberto: guarda o antigo e zera
+function virarDia() {
+  const velho = placarDoDia();
+  memoria.update("ontem", velho);
+
+  diaAtual = hojeComoTexto();
+  digitados = 0;
+  colados = 0;
+  tomatadas = 0;
+  pomodoros = 0;
+  salvarDia();
+  atualizarPlacar();
+  avisar("feliz", resumo(velho));
+}
+
+// "Bom dia! Da última vez: 3 🏆, 12% colado e 4 tomatadas."
+function resumo(dia) {
+  const total = dia.digitados + dia.colados;
+  const colado = total === 0 ? 0 : Math.round((dia.colados / total) * 100);
+  return (
+    "Bom dia! Da última vez: " +
+    dia.pomodoros +
+    " 🏆, " +
+    colado +
+    "% colado e " +
+    dia.tomatadas +
+    " tomatadas."
+  );
+}
+
+// ===== NOVO: manchas de cada arquivo =====
+
+// o "endereço" de um arquivo, usado como chave no Map
+function chave(documento) {
+  return documento.uri.toString();
+}
+
+// guarda uma mancha nova e pinta
+function adicionarMancha(editor, inicio, fim) {
+  const lista = manchas.get(chave(editor.document)) || [];
+  lista.push({ inicio: inicio, fim: fim });
+  manchas.set(chave(editor.document), lista);
+  pintar(editor);
+}
+
+// pinta as manchas de um arquivo aberto
+function pintar(editor) {
+  const lista = manchas.get(chave(editor.document)) || [];
+  const trechos = lista.map((m) => new vscode.Range(m.inicio, 0, m.fim, 0));
+  editor.setDecorations(tomate, manchasLigadas() ? trechos : []);
+}
+
+// pinta todos os arquivos que estão na tela
+function pintarTodos() {
+  vscode.window.visibleTextEditors.forEach(pintar);
+}
+
+// tira todas as manchas de todos os arquivos
+function limparManchas() {
+  manchas.clear();
+  pintarTodos();
+}
+
+// linhas entraram ou saíram: as manchas abaixo descem ou sobem junto
+function ajustarManchas(documento, mudanca) {
+  const lista = manchas.get(chave(documento));
+  if (!lista) return;
+
+  const removidas = mudanca.range.end.line - mudanca.range.start.line;
+  const adicionadas = mudanca.text.split("\n").length - 1;
+  const diferenca = adicionadas - removidas;
+  if (diferenca === 0) return;
+
+  for (const m of lista) {
+    if (m.inicio > mudanca.range.end.line) {
+      // a mudança foi acima da mancha: ela inteira se move
+      m.inicio += diferenca;
+      m.fim += diferenca;
+    } else if (m.fim >= mudanca.range.start.line) {
+      // a mudança foi dentro da mancha: ela estica ou encolhe
+      m.fim = Math.max(m.inicio, m.fim + diferenca);
+    }
+  }
+}
+
+// ===== a linha pedida =====
 
 // escolhe uma linha "interessante" do bloco colado
 function escolherLinha(texto) {
@@ -340,16 +520,11 @@ function explicouALinha(documento, numero, texto, posicao) {
   return false;
 }
 
-// tira todas as manchas de tomate do código
-function limparManchas() {
-  if (editorManchado) editorManchado.setDecorations(tomate, []);
-  manchas = [];
-  editorManchado = undefined;
-}
+// ===== pomodoro, placar e recados =====
 
 // o relógio está pausado?
 function estaPausado() {
-  const parado = Date.now() - ultimaAtividade > PARADO;
+  const parado = Date.now() - ultimaAtividade > pausaEmMs();
   return !rodando || pendente || parado;
 }
 
@@ -365,7 +540,7 @@ function enviarTempo() {
   painelAtual.webview.postMessage({
     tipo: "tempo",
     segundos: segundos,
-    meta: META,
+    meta: metaMinutos() * 60,
     pomodoros: pomodoros,
     pausado: estaPausado(),
     motivo: motivo,
@@ -382,6 +557,8 @@ function porcentagemColada() {
 
 // atualiza o placar na barra de baixo e no painel
 function atualizarPlacar() {
+  mudouDesdeSalvar = true;
+
   const colado = porcentagemColada();
   placar.text = `$(edit) ${100 - colado}%  $(clippy) ${colado}%`;
 
@@ -402,14 +579,15 @@ function avisar(humor, fala, tomates = 0, codigo = null) {
   falaAtual = fala;
   codigoAtual = codigo;
 
-  // soma as tomatadas
+  // soma as tomatadas (mesmo com os tomates voando desligados)
   if (tomates > 0) {
     tomatadas += tomates;
-    splatsNaTela = Math.min(splatsNaTela + tomates, 14);
+    if (tomatesLigados()) splatsNaTela = Math.min(splatsNaTela + tomates, 14);
     atualizarPlacar();
   }
 
-  enviarHumor(tomates);
+  // NOVO: com os tomates desligados, o painel não joga nada
+  enviarHumor(tomatesLigados() ? tomates : 0);
 }
 
 // manda o humor atual pro painel
@@ -425,8 +603,10 @@ function enviarHumor(tomates) {
   }
 }
 
-// roda quando a extensão desliga
-function deactivate() {}
+// roda quando a extensão desliga: NOVO: salva o dia antes de sair
+function deactivate() {
+  if (memoria) return salvarDia();
+}
 
 // diz ao VS Code quais funções ele pode chamar
 module.exports = {
