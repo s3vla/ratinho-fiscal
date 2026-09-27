@@ -22,4 +22,4 @@ Um ratinho chef que mora no VS Code e cobra quando você cola código em vez de 
 2. No terminal: `code --install-extension ratinho-fiscal-0.0.1.vsix`
 3. Reinicie o VS Code e clique no ícone do ratinho na barra da esquerda.
 
-Feito por [@s3vla](https://github.com/s3vla).
+Feito por [@s3vla](https://github.com/s3vla) como projeto de aprendizado.
