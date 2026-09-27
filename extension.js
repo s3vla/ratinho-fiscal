@@ -1,8 +1,11 @@
 // traz as ferramentas do VS Code
 const vscode = require("vscode");
 
-// NOVO: guarda o painel aberto, pra poder mandar recados pra ele
+// guarda o painel aberto, pra poder mandar recados pra ele
 let painelAtual;
+
+// NOVO: lembra se tem código colado sem explicação
+let pendente = false;
 
 // roda uma vez, quando a extensão liga
 function activate(context) {
@@ -19,8 +22,8 @@ function activate(context) {
   // quem desenha o painel do ratinho
   const provedor = {
     resolveWebviewView(painel) {
-      painelAtual = painel; // NOVO: guarda o painel
-      painel.webview.options = { enableScripts: true }; // NOVO: libera JS no painel
+      painelAtual = painel;
+      painel.webview.options = { enableScripts: true };
       painel.webview.html = htmlDoRatinho();
     },
   };
@@ -30,28 +33,55 @@ function activate(context) {
     provedor,
   );
 
-  // NOVO: roda no lugar do Ctrl+V
+  // roda no lugar do Ctrl+V
   const colar = vscode.commands.registerCommand(
     "ratinho-fiscal.colar",
     async function () {
-      // lê o que foi copiado e conta as linhas
       const texto = await vscode.env.clipboard.readText();
       const linhas = texto.split("\n").length;
 
-      // cola de verdade (senão o Ctrl+V pararia de funcionar)
       await vscode.commands.executeCommand(
         "editor.action.clipboardPasteAction",
       );
 
-      // se colou 3 linhas ou mais e o painel está aberto, avisa o ratinho
-      if (linhas >= 3 && painelAtual) {
-        painelAtual.webview.postMessage({ tipo: "colou", linhas: linhas });
+      if (linhas >= 3) {
+        pendente = true; // NOVO: agora tem código pra explicar
+        if (painelAtual) {
+          painelAtual.webview.postMessage({ tipo: "colou", linhas: linhas });
+        }
       }
     },
   );
 
+  // NOVO: roda a cada mudança no texto de qualquer arquivo
+  const ouvinte = vscode.workspace.onDidChangeTextDocument((evento) => {
+    // se não tem nada pra explicar, nem olha
+    if (!pendente) return;
+
+    for (const mudanca of evento.contentChanges) {
+      // a mudança foi só um Enter? (quebra de linha + espaços do recuo)
+      const foiEnter = /^\r?\n[ \t]*$/.test(mudanca.text);
+      if (!foiEnter) continue;
+
+      // pega a linha onde o Enter foi apertado
+      const numero = mudanca.range.start.line;
+      const linha = evento.document.lineAt(numero).text.trim();
+
+      // conta as palavras depois do //
+      const palavras = linha.replace("//", "").trim().split(/\s+/);
+
+      // é um comentário com pelo menos 3 palavras? então explicou!
+      if (linha.startsWith("//") && palavras.length >= 3) {
+        pendente = false;
+        if (painelAtual) {
+          painelAtual.webview.postMessage({ tipo: "explicou" });
+        }
+      }
+    }
+  });
+
   // guarda tudo na lista de limpeza
-  context.subscriptions.push(comando, registro, colar);
+  context.subscriptions.push(comando, registro, colar, ouvinte);
 }
 
 // roda quando a extensão desliga
@@ -76,7 +106,6 @@ function htmlDoRatinho() {
   .vapor path:nth-child(3){animation-delay:1.6s}
   .interroga{transform-origin:166px 36px;animation:quica 1.2s ease-in-out infinite}
 
-  /* NOVO: troca de cara */
   .so-desconfiado{display:none}
   body.desconfiado .so-desconfiado{display:inline}
   body.desconfiado .so-feliz{display:none}
@@ -142,7 +171,7 @@ function htmlDoRatinho() {
   </svg>
 
   <script>
-    // NOVO: o painel escuta os recados da extensão
+    // o painel escuta os recados da extensão
     const balao = document.querySelector(".balao");
 
     window.addEventListener("message", (evento) => {
@@ -150,7 +179,13 @@ function htmlDoRatinho() {
 
       if (recado.tipo === "colou") {
         document.body.classList.add("desconfiado");
-        balao.textContent = "Esse bloco veio pronto, né? " + recado.linhas + " linhas coladas.";
+        balao.textContent = "Esse bloco veio pronto, né? " + recado.linhas + " linhas coladas. Explica com um comentário //";
+      }
+
+      // NOVO: fez as pazes
+      if (recado.tipo === "explicou") {
+        document.body.classList.remove("desconfiado");
+        balao.textContent = "Agora sim! Quem explica é porque entendeu.";
       }
     });
   </script>
