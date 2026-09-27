@@ -2,7 +2,7 @@
   "name": "ratinho-fiscal",
   "displayName": "Ratinho Fiscal",
   "description": "Um ratinho que cobra quando você cola código em vez de digitar",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "publisher": "s3vla",
   "repository": {
     "type": "git",
@@ -19,6 +19,13 @@
   ],
   "main": "./extension.js",
   "contributes": {
+    "commands": [
+      {
+        "command": "ratinho-fiscal.zerar",
+        "title": "Zerar placar de hoje",
+        "category": "Ratinho Fiscal"
+      }
+    ],
     "viewsContainers": {
       "activitybar": [
         {

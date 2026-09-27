@@ -6,7 +6,7 @@ const path = require("path");
 
 // guarda o painel aberto, pra poder mandar recados pra ele
 let painelAtual;
-// NOVO: a memória que sobrevive quando o VS Code fecha
+// a memória que sobrevive quando o VS Code fecha
 let memoria;
 // lembra se tem código colado sem explicação
 let pendente = false;
@@ -28,17 +28,17 @@ let ultimaAtividade = 0; // começa sem atividade
 let rodando = false; // você apertou Iniciar?
 // o estilo da mancha de tomate no código
 let tomate;
-// NOVO: manchas de cada arquivo (endereço do arquivo → lista de { inicio, fim })
+// manchas de cada arquivo (endereço do arquivo → lista de { inicio, fim })
 const manchas = new Map();
 // o último texto copiado de dentro do VS Code
 let copiadoAqui = "";
 // a linha que o ratinho quer que você explique
 let linhaPedida = null;
-// NOVO: controle do dia
+// controle do dia
 let diaAtual = hojeComoTexto();
 let mudouDesdeSalvar = false;
 
-// ===== NOVO: configurações =====
+// ===== configurações =====
 
 function config() {
   return vscode.workspace.getConfiguration("ratinhoFiscal");
@@ -62,7 +62,7 @@ function manchasLigadas() {
 // ===== roda uma vez, quando a extensão liga =====
 
 function activate(context) {
-  // NOVO: carrega o dia salvo
+  // carrega o dia salvo
   memoria = context.globalState;
   carregarDia();
 
@@ -191,7 +191,7 @@ function activate(context) {
       // colou um bloco, o pomodoro zera
       segundos = 0;
 
-      // NOVO: guarda a mancha deste arquivo
+      // guarda a mancha deste arquivo
       if (editor && inicio) {
         adicionarMancha(editor, inicio.line, editor.selection.active.line);
       }
@@ -238,7 +238,7 @@ function activate(context) {
     if (tipo !== "file" && tipo !== "untitled") return;
 
     for (const mudanca of evento.contentChanges) {
-      // NOVO: se linhas entraram ou saíram, as manchas se mexem junto
+      // se linhas entraram ou saíram, as manchas se mexem junto
       ajustarManchas(evento.document, mudanca);
 
       // digitou tecla por tecla? (1 ou 2 caracteres, como "a" ou "()")
@@ -290,7 +290,7 @@ function activate(context) {
     atualizarPlacar();
   });
 
-  // NOVO: trocou de arquivo? pinta as manchas dele
+  // trocou de arquivo? pinta as manchas dele
   const trocouArquivo = vscode.window.onDidChangeActiveTextEditor((editor) => {
     if (editor) pintar(editor);
   });
@@ -298,7 +298,7 @@ function activate(context) {
     pintarTodos(),
   );
 
-  // NOVO: mudou alguma configuração do ratinho? aplica na hora
+  // mudou alguma configuração do ratinho? aplica na hora
   const mudouConfig = vscode.workspace.onDidChangeConfiguration((evento) => {
     if (evento.affectsConfiguration("ratinhoFiscal")) {
       pintarTodos();
@@ -306,10 +306,38 @@ function activate(context) {
     }
   });
 
+  // comando pra zerar o placar do dia (com confirmação)
+  const zerar = vscode.commands.registerCommand(
+    "ratinho-fiscal.zerar",
+    async function () {
+      const resposta = await vscode.window.showWarningMessage(
+        "Zerar digitados, colados, tomatadas e troféus de hoje?",
+        { modal: true },
+        "Zerar",
+      );
+      if (resposta !== "Zerar") return; // clicou em Cancelar
+
+      digitados = 0;
+      colados = 0;
+      tomatadas = 0;
+      pomodoros = 0;
+      segundos = 0;
+      salvarDia();
+      atualizarPlacar();
+      enviarTempo();
+      avisar(
+        humorAtual,
+        "Placar zerado. Mas eu lembro de tudo… 👀",
+        0,
+        codigoAtual,
+      );
+    },
+  );
+
   // o relógio, que roda a cada 1 segundo
   let tiques = 0;
   const relogio = setInterval(() => {
-    // NOVO: o dia virou?
+    // o dia virou?
     if (hojeComoTexto() !== diaAtual) virarDia();
 
     if (!estaPausado()) {
@@ -336,7 +364,7 @@ function activate(context) {
 
     enviarTempo();
 
-    // NOVO: a cada 10 segundos, salva o dia (se algo mudou)
+    // a cada 10 segundos, salva o dia (se algo mudou)
     tiques++;
     if (tiques % 10 === 0 && mudouDesdeSalvar) salvarDia();
   }, 1000);
@@ -353,11 +381,12 @@ function activate(context) {
     trocouArquivo,
     mudouTela,
     mudouConfig,
+    zerar,
     { dispose: () => clearInterval(relogio) },
   );
 }
 
-// ===== NOVO: salvar o dia =====
+// ===== salvar o dia =====
 
 // a data de hoje no formato "2026-09-27"
 function hojeComoTexto() {
@@ -426,7 +455,7 @@ function resumo(dia) {
   );
 }
 
-// ===== NOVO: manchas de cada arquivo =====
+// ===== manchas de cada arquivo =====
 
 // o "endereço" de um arquivo, usado como chave no Map
 function chave(documento) {
@@ -586,7 +615,7 @@ function avisar(humor, fala, tomates = 0, codigo = null) {
     atualizarPlacar();
   }
 
-  // NOVO: com os tomates desligados, o painel não joga nada
+  // com os tomates desligados, o painel não joga nada
   enviarHumor(tomatesLigados() ? tomates : 0);
 }
 
@@ -603,7 +632,7 @@ function enviarHumor(tomates) {
   }
 }
 
-// roda quando a extensão desliga: NOVO: salva o dia antes de sair
+// roda quando a extensão desliga: salva o dia antes de sair
 function deactivate() {
   if (memoria) return salvarDia();
 }
