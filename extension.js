@@ -1,9 +1,12 @@
 // traz as ferramentas do VS Code
 const vscode = require("vscode");
 
+// NOVO: guarda o painel aberto, pra poder mandar recados pra ele
+let painelAtual;
+
 // roda uma vez, quando a extensão liga
 function activate(context) {
-  // comando que mostra a notificação (mesmo nome do package.json)
+  // comando que mostra a notificação
   const comando = vscode.commands.registerCommand(
     "ratinho-fiscal.helloWorld",
     function () {
@@ -15,20 +18,40 @@ function activate(context) {
 
   // quem desenha o painel do ratinho
   const provedor = {
-    // roda quando o painel abre: coloca o HTML dentro dele
     resolveWebviewView(painel) {
+      painelAtual = painel; // NOVO: guarda o painel
+      painel.webview.options = { enableScripts: true }; // NOVO: libera JS no painel
       painel.webview.html = htmlDoRatinho();
     },
   };
 
-  // liga o painel "ratinho.painel" (mesmo id do package.json) ao provedor
   const registro = vscode.window.registerWebviewViewProvider(
     "ratinho.painel",
     provedor,
   );
 
+  // NOVO: roda no lugar do Ctrl+V
+  const colar = vscode.commands.registerCommand(
+    "ratinho-fiscal.colar",
+    async function () {
+      // lê o que foi copiado e conta as linhas
+      const texto = await vscode.env.clipboard.readText();
+      const linhas = texto.split("\n").length;
+
+      // cola de verdade (senão o Ctrl+V pararia de funcionar)
+      await vscode.commands.executeCommand(
+        "editor.action.clipboardPasteAction",
+      );
+
+      // se colou 3 linhas ou mais e o painel está aberto, avisa o ratinho
+      if (linhas >= 3 && painelAtual) {
+        painelAtual.webview.postMessage({ tipo: "colou", linhas: linhas });
+      }
+    },
+  );
+
   // guarda tudo na lista de limpeza
-  context.subscriptions.push(comando, registro);
+  context.subscriptions.push(comando, registro, colar);
 }
 
 // roda quando a extensão desliga
@@ -42,6 +65,7 @@ function htmlDoRatinho() {
 <style>
   body{display:flex;flex-direction:column;align-items:center;gap:14px;padding:16px;font-family:var(--vscode-font-family);color:var(--vscode-foreground)}
   .balao{margin:0;border:1.5px solid #3b4261;border-radius:14px;padding:8px 12px;text-align:center}
+  body.desconfiado .balao{border-color:#e0af68}
   svg{width:180px;overflow:visible}
   .anima{transform-box:view-box}
   .bigode{transform-origin:100px 116px;animation:bigode 2.6s ease-in-out infinite}
@@ -50,10 +74,19 @@ function htmlDoRatinho() {
   .vapor path{opacity:0;animation:vapor 2.4s ease-in-out infinite}
   .vapor path:nth-child(2){animation-delay:.8s}
   .vapor path:nth-child(3){animation-delay:1.6s}
+  .interroga{transform-origin:166px 36px;animation:quica 1.2s ease-in-out infinite}
+
+  /* NOVO: troca de cara */
+  .so-desconfiado{display:none}
+  body.desconfiado .so-desconfiado{display:inline}
+  body.desconfiado .so-feliz{display:none}
+  body.desconfiado .colher{animation:none}
+
   @keyframes bigode{50%{transform:rotate(3deg)}}
   @keyframes piscar{0%,92%,100%{transform:scaleY(1)}95%{transform:scaleY(.1)}}
   @keyframes mexer{0%,100%{transform:rotate(-10deg)}50%{transform:rotate(12deg)}}
   @keyframes vapor{0%{opacity:0;transform:translateY(6px)}40%{opacity:.55}100%{opacity:0;transform:translateY(-14px)}}
+  @keyframes quica{0%,100%{transform:translateY(0) rotate(-6deg)}50%{transform:translateY(-6px) rotate(6deg)}}
   @media (prefers-reduced-motion:reduce){*{animation:none!important}}
 </style>
 </head>
@@ -71,17 +104,26 @@ function htmlDoRatinho() {
     <circle cx="84" cy="42" r="13" fill="#eef0f8"/><circle cx="100" cy="34" r="15" fill="#eef0f8"/><circle cx="116" cy="42" r="13" fill="#eef0f8"/>
     <rect x="78" y="44" width="44" height="22" rx="4" fill="#eef0f8"/>
     <rect x="78" y="60" width="44" height="6" rx="2" fill="#d4d8ea"/>
-    <g class="olhos anima">
+
+    <g class="so-feliz olhos anima">
       <circle cx="86" cy="100" r="5.5" fill="#1a1b26"/><circle cx="114" cy="100" r="5.5" fill="#1a1b26"/>
       <circle cx="87.8" cy="98" r="1.7" fill="#fff"/><circle cx="115.8" cy="98" r="1.7" fill="#fff"/>
     </g>
+    <g class="so-desconfiado" stroke="#1a1b26" stroke-linecap="round" fill="none">
+      <path d="M79 101 h14" stroke-width="4"/><path d="M107 101 h14" stroke-width="4"/>
+      <path d="M105 88 Q114 83 123 89" stroke-width="3"/>
+    </g>
+
     <ellipse cx="100" cy="114" rx="6" ry="4.5" fill="#e8a0b4"/>
     <g class="bigode anima" stroke="#5c6488" stroke-width="1.6" stroke-linecap="round">
       <path d="M92 116 L62 109"/><path d="M92 118 L62 122"/>
       <path d="M108 116 L138 109"/><path d="M108 118 L138 122"/>
     </g>
-    <path d="M92 124 Q100 131 108 124" stroke="#1a1b26" stroke-width="3" fill="none" stroke-linecap="round"/>
-    <g class="vapor anima" stroke="#a9b1d6" stroke-width="2.5" fill="none" stroke-linecap="round">
+
+    <path class="so-feliz" d="M92 124 Q100 131 108 124" stroke="#1a1b26" stroke-width="3" fill="none" stroke-linecap="round"/>
+    <path class="so-desconfiado" d="M93 126 Q100 123 107 127" stroke="#1a1b26" stroke-width="3" fill="none" stroke-linecap="round"/>
+
+    <g class="so-feliz vapor anima" stroke="#a9b1d6" stroke-width="2.5" fill="none" stroke-linecap="round">
       <path d="M78 166 q-5 -7 0 -14 q5 -7 0 -14"/>
       <path d="M100 164 q-5 -7 0 -14 q5 -7 0 -14"/>
       <path d="M122 166 q-5 -7 0 -14 q5 -7 0 -14"/>
@@ -95,7 +137,23 @@ function htmlDoRatinho() {
       <line x1="112" y1="186" x2="134" y2="140" stroke="#e0af68" stroke-width="5" stroke-linecap="round"/>
       <circle cx="134" cy="140" r="8" fill="#9ea5c2"/>
     </g>
+
+    <text class="so-desconfiado interroga anima" x="158" y="46" font-size="30" font-weight="700" fill="#e0af68">?</text>
   </svg>
+
+  <script>
+    // NOVO: o painel escuta os recados da extensão
+    const balao = document.querySelector(".balao");
+
+    window.addEventListener("message", (evento) => {
+      const recado = evento.data;
+
+      if (recado.tipo === "colou") {
+        document.body.classList.add("desconfiado");
+        balao.textContent = "Esse bloco veio pronto, né? " + recado.linhas + " linhas coladas.";
+      }
+    });
+  </script>
 </body>
 </html>`;
 }
